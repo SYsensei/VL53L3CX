@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F401xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;..\Drivers\BSP\Components\vl53l3cx;..\Drivers\BSP\53L3A2</IncludePath>
+              <IncludePath>../Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;..\Drivers\BSP\Components\vl53l3cx;..\Drivers\BSP\53L3A2;..\Drivers\BSP\Components\VL53L3CX_UltralowPowerDriver</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -418,6 +418,16 @@
               <FileName>vl53lx_platform_ipp.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Src\vl53lx_platform_ipp.c</FilePath>
+            </File>
+            <File>
+              <FileName>VL53L3CX_ULP_platform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\VL53L3CX_ULP_platform.c</FilePath>
+            </File>
+            <File>
+              <FileName>platform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\platform.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -522,7 +532,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>VL53LX</GroupName>
+          <GroupName>vl53l3cx</GroupName>
           <Files>
             <File>
               <FileName>vl53lx_api.c</FileName>
@@ -628,6 +638,16 @@
               <FileName>53l3a2.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\53L3A2\53l3a2.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>vl53l3cx_ulp</GroupName>
+          <Files>
+            <File>
+              <FileName>VL53L3CX_ULP_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Components\VL53L3CX_UltralowPowerDriver\VL53L3CX_ULP_api.c</FilePath>
             </File>
           </Files>
         </Group>

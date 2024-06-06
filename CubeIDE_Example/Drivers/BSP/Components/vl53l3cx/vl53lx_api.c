@@ -735,7 +735,6 @@ static VL53LX_Error SetTargetData(VL53LX_DEV Dev,
 	int32_t ExtendedRangeEnabled = 0;
 	uint8_t uwr_status;
 	int16_t AddOffset;
-	uint8_t histo_merge_nb;
 
 	SUPPRESS_UNUSED_WARNING(Dev);
 
@@ -802,10 +801,8 @@ static VL53LX_Error SetTargetData(VL53LX_DEV Dev,
 
 	pRangeData->ExtendedRange = 0;
 
-
-	Status = VL53LX_compute_histo_merge_nb(Dev, &histo_merge_nb);
 	if ((active_results != 1) ||
-		(pdev->PreviousRangeActiveResults != 1)||(histo_merge_nb == 0))
+		(pdev->PreviousRangeActiveResults != 1))
 		ExtendedRangeEnabled = 0;
 
 	if (ExtendedRangeEnabled &&
@@ -1140,11 +1137,14 @@ VL53LX_Error VL53LX_PerformRefSpadManagement(VL53LX_DEV Dev)
 	pdev = VL53LXDevStructGetLLDriverHandle(Dev);
 	pc = &pdev->customer;
 
-	DistanceMode = VL53LXDevDataGet(Dev,
-			CurrentParameters.DistanceMode);
-
-	if (Status == VL53LX_ERROR_NONE)
+	if (Status == VL53LX_ERROR_NONE) {
+		DistanceMode = VL53LXDevDataGet(Dev,
+				CurrentParameters.DistanceMode);
 		Status = VL53LX_run_ref_spad_char(Dev, &RawStatus);
+
+		if (Status == VL53LX_ERROR_NONE)
+			Status = VL53LX_SetDistanceMode(Dev, DistanceMode);
+	}
 
 	if (Status == VL53LX_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH) {
 
@@ -1182,9 +1182,6 @@ VL53LX_Error VL53LX_PerformRefSpadManagement(VL53LX_DEV Dev)
 		}
 
 	}
-
-
-	VL53LX_SetDistanceMode(Dev, DistanceMode);
 
 	LOG_FUNCTION_END(Status);
 	return Status;
@@ -1290,13 +1287,8 @@ VL53LX_Error VL53LX_PerformXTalkCalibration(VL53LX_DEV Dev)
 	uint32_t *pLLDataPlaneOffsetKcps;
 	uint32_t sum = 0;
 	uint8_t binok = 0;
-	VL53LX_DistanceModes DistanceMode;
-	uint32_t TimingBudgetMicroSeconds;
 
 	LOG_FUNCTION_START("");
-
-	Status = VL53LX_GetDistanceMode(Dev, &DistanceMode);
-	Status = VL53LX_GetMeasurementTimingBudgetMicroSeconds(Dev, &TimingBudgetMicroSeconds);
 
 	pPlaneOffsetKcps =
 	&caldata.customer.algo__crosstalk_compensation_plane_offset_kcps;
@@ -1339,9 +1331,6 @@ VL53LX_Error VL53LX_PerformXTalkCalibration(VL53LX_DEV Dev)
 			VL53LX_TUNINGPARM_DYNXTALK_NODETECT_XTALK_OFFSET_KCPS,
 			xtalk.algo__crosstalk_compensation_plane_offset_kcps);
 	}
-
-	Status = VL53LX_SetDistanceMode(Dev, DistanceMode);
-	Status = VL53LX_SetMeasurementTimingBudgetMicroSeconds(Dev, TimingBudgetMicroSeconds);
 
 	LOG_FUNCTION_END(Status);
 	return Status;
