@@ -33,6 +33,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_hal.h"
+#include "config.h"
 
 /* USER CODE BEGIN Includes */
 #include "main.h"
@@ -108,7 +109,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  *  - 90¦ÌA when a target is detected.
  * The maximum ranging distance is approx 400mm.
  */
-
+uint8_t RangeStatus;
+uint16_t RangeMilliMeter, SigmaMilliMeter, SignalRateRtnMegaCps, AmbientRateRtnMegaCps;
 int InitAndStartLowPower(){
 	uint8_t continue_loop = 1;
 
@@ -119,13 +121,13 @@ int InitAndStartLowPower(){
 	status = VL53L3CX_ULP_SensorInit((uint16_t)Dev->I2cDevAddr);
 
 	/*  Example of configuration for generating an interrupt if something is detected below 300mm  */
-	status = VL53L3CX_ULP_SetInterruptConfiguration((uint16_t)Dev->I2cDevAddr, 300, 1);
+	//status = VL53L3CX_ULP_SetInterruptConfiguration((uint16_t)Dev->I2cDevAddr, 300, 1);
 
-	status = VL53L3CX_ULP_SetInterMeasurementInMs((uint16_t)Dev->I2cDevAddr, 1000);
-	status = VL53L3CX_ULP_SetMacroTiming((uint16_t)Dev->I2cDevAddr, 1);
-	status = VL53L3CX_ULP_SetSignalThreshold((uint16_t)Dev->I2cDevAddr, 6000);
-	status = VL53L3CX_ULP_SetSigmaThreshold((uint16_t)Dev->I2cDevAddr, 35);
-	status = VL53L3CX_ULP_SetROI((uint16_t)Dev->I2cDevAddr, 16);
+	status = VL53L3CX_ULP_SetInterMeasurementInMs((uint16_t)Dev->I2cDevAddr, PARA_Intermeasurement_period);
+	status = VL53L3CX_ULP_SetMacroTiming((uint16_t)Dev->I2cDevAddr, PARA_Macroperiod);
+	status = VL53L3CX_ULP_SetSignalThreshold((uint16_t)Dev->I2cDevAddr, PARA_Signal_threshold);
+	status = VL53L3CX_ULP_SetSigmaThreshold((uint16_t)Dev->I2cDevAddr, PARA_Sigma_threshold);
+	status = VL53L3CX_ULP_SetROI((uint16_t)Dev->I2cDevAddr, PARA_Region_of_interest);
 
 	status = VL53L3CX_ULP_StartRanging((uint16_t)Dev->I2cDevAddr);
 	if(status)
@@ -138,15 +140,25 @@ int InitAndStartLowPower(){
 	IntCount = 0;
 
 	/* Wait for HW interrupt */
-	printf("Ranging started. Put a target below 300mm to wake up the sensor...\n");
+	//printf("Ranging started. Put a target below 300mm to wake up the sensor...\n");
 	do
 	{
 		__WFI();
 		if(IntCount !=0 ){
+            VL53L3CX_ULP_DumpDebugData(Dev->I2cDevAddr, &RangeStatus, &RangeMilliMeter, &SigmaMilliMeter, &SignalRateRtnMegaCps, &AmbientRateRtnMegaCps);
 			IntCount=0;
+            
+            printf("Signal=%2.2f Mcps, Ambient=%2.2f Mcps, Sigma=%2.2f mm, D=%5dmm, status=%d",
+                SignalRateRtnMegaCps/65536.0,
+                AmbientRateRtnMegaCps/65536.0,
+                SigmaMilliMeter/65536.0,
+                RangeMilliMeter,
+                RangeStatus);
+            printf ("\n");
+            
 			status = VL53L3CX_ULP_ClearInterrupt((uint16_t)Dev->I2cDevAddr);
-			continue_loop = 0;
-			printf("Target detected ! Exit low power mode\n\n");
+			//continue_loop = 0;
+			//printf("Target detected ! Exit low power mode\n\n");
 		}
 	}while(continue_loop);
 
@@ -161,7 +173,7 @@ int InitAndStartLowPower(){
  */
 int InitAndStartRanging(){
 	uint8_t continue_loop = 1;
-	uint16_t nb_frames_before_low_power = NB_FRAMES_BEFORE_LOW_POWER;
+	//uint16_t nb_frames_before_low_power = NB_FRAMES_BEFORE_LOW_POWER;
 	VL53LX_MultiRangingData_t MultiRangingData;
 
 	printf("***********************************************\n");
@@ -175,6 +187,11 @@ int InitAndStartRanging(){
 	 status = VL53LX_SetCalibrationData(Dev, &bare_driver_xtalk_caldata);
 #endif
 
+    VL53LX_set_tuning_parm(Dev, VL53LX_TUNINGPARM_RESET_MERGE_THRESHOLD,
+        PARA_VL53LX_TUNINGPARM_RESET_MERGE_THRESHOLD);
+    VL53LX_set_tuning_parm(Dev, VL53LX_TUNINGPARM_PHASECAL_PATCH_POWER,
+        PARA_VL53LX_TUNINGPARM_PHASECAL_PATCH_POWER);
+
 	status = VL53LX_StartMeasurement(Dev);
 	if(status)
 	{
@@ -182,6 +199,14 @@ int InitAndStartRanging(){
 		return status;
 	}
 
+//    if(onetime == 2)
+//    {
+//        VL53LX_get_tuning_parm(Dev, VL53LX_TUNINGPARM_RESET_MERGE_THRESHOLD,
+//		&test1);
+//        VL53LX_get_tuning_parm(Dev, VL53LX_TUNINGPARM_PHASECAL_PATCH_POWER,
+//		&test2);
+//        onetime = 3;
+//    }
 	/* Clear first interrupt (raised when ranging starts) */
 	IntCount = 0;
 
@@ -202,31 +227,49 @@ int InitAndStartRanging(){
 			 *  - Or measured distance is above 1000 mm
 			 */
 
-			if((MultiRangingData.NumberOfObjectsFound == 0)
-				||((MultiRangingData.RangeData[0].RangeStatus != 0)
-						&& (MultiRangingData.RangeData[0].RangeStatus != 6))
-				|| (MultiRangingData.RangeData[0].RangeMilliMeter > 1000))
-			{
-				nb_frames_before_low_power--;
-				printf("No object found below 1000mm - sensor will go in low power in %4u frames\n",
-						nb_frames_before_low_power);
-			}
-			else
-			{
-				nb_frames_before_low_power = NB_FRAMES_BEFORE_LOW_POWER;
-				printf("Distance %d mm, Status %u\n",
-						MultiRangingData.RangeData[0].RangeMilliMeter,
-						MultiRangingData.RangeData[0].RangeStatus);
-			}
+//			if((MultiRangingData.NumberOfObjectsFound == 0)
+//				||((MultiRangingData.RangeData[0].RangeStatus != 0)
+//						&& (MultiRangingData.RangeData[0].RangeStatus != 6))
+//				|| (MultiRangingData.RangeData[0].RangeMilliMeter > 1000))
+//			{
+//				nb_frames_before_low_power--;
+//				printf("No object found below 1000mm - sensor will go in low power in %4u frames\n",
+//						nb_frames_before_low_power);
+//			}
+//			else
+//			{
+//				nb_frames_before_low_power = NB_FRAMES_BEFORE_LOW_POWER;
+//				printf("Distance %d mm, Status %u\n",
+//						MultiRangingData.RangeData[0].RangeMilliMeter,
+//						MultiRangingData.RangeData[0].RangeStatus);
+//			}
 
-			/* Exit ranging loop if counter reached */
-			if(nb_frames_before_low_power == 0)
-			{
-				printf("No user detected since a few seconds. Exit ranging mode and go in low power.\n\n");
-				continue_loop = 0;
-			}
+//			/* Exit ranging loop if counter reached */
+//			if(nb_frames_before_low_power == 0)
+//			{
+//				printf("No user detected since a few seconds. Exit ranging mode and go in low power.\n\n");
+//				continue_loop = 0;
+//			}
+//            if((MultiRangingData.NumberOfObjectsFound == 0)
+//				||((MultiRangingData.RangeData[0].RangeStatus != 0)
+//						&& (MultiRangingData.RangeData[0].RangeStatus != 6))
+//				|| (MultiRangingData.RangeData[0].RangeMilliMeter > 1000))
+//			{
+//            }
+//            else
+//            {
+            printf("Signal=%2.2f Mcps, Ambient=%2.2f Mcps, Sigma=%2.2f mm, D=%5dmm, status=%d",
+                 MultiRangingData.RangeData[0].SignalRateRtnMegaCps/65536.0,
+                 MultiRangingData.RangeData[0].AmbientRateRtnMegaCps/65536.0,
+                 MultiRangingData.RangeData[0].SigmaMilliMeter/65536.0,
+                 MultiRangingData.RangeData[0].RangeMilliMeter,
+                 MultiRangingData.RangeData[0].RangeStatus);
+            printf ("\n");
+//            }
 			status = VL53LX_ClearInterruptAndStartMeasurement(Dev);
+
 		}
+
 	}while(continue_loop);
 
 	status = VL53LX_StopMeasurement(Dev);
@@ -241,8 +284,8 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   
-  uint8_t byteData;
-  uint16_t wordData;
+//  uint8_t byteData;
+//  uint16_t wordData;
   uint8_t ToFSensor = 1; // 0=Left, 1=Center(default), 2=Right
   
   /* MCU Configuration----------------------------------------------------------*/
@@ -278,30 +321,7 @@ int main(void)
 //  MX_USART2_UART_Init();
 
   /* USER CODE BEGIN 2 */
-#ifdef DistanceMode
-  printf("VL53L1X Examples...\n");
-  Dev->I2cHandle = &hi2c1;
-  Dev->I2cDevAddr = 0x52;
-  
-  /* Allow to select the sensor to be used, multi-sensor is not managed in this example.
-  Only when use use the Left ToF in interrupt mode,  solder the U7 on the X-Nucleo-53L3A2 board 
-  Only when use the Right ToF in interrupt mode, solder the U7 on the X-Nucleo-53L3A2 board
-  See "Solder drop configurations" in the X-Nucleo-53L3A2 User Manual for more details */
-  ToFSensor = 1; // Select ToFSensor: 0=Left, 1=Center, 2=Right
-  status = XNUCLEO53L3A2_ResetId(ToFSensor, 0); // Reset ToF sensor
-  HAL_Delay(2);
-  status = XNUCLEO53L3A2_ResetId(ToFSensor, 1); // Reset ToF sensor
-  HAL_Delay(2);
-  
-  VL53LX_RdByte(Dev, 0x010F, &byteData);
-  printf("VL53LX Model_ID: %02X\n\r", byteData);
-  VL53LX_RdByte(Dev, 0x0110, &byteData);
-  printf("VL53LX Module_Type: %02X\n\r", byteData);
-  VL53LX_RdWord(Dev, 0x010F, &wordData);
-  printf("VL53LX: %02X\n\r", wordData);
-  RangingLoop();
-#endif
-    
+#if PARA_UltraLowPower
     printf("Starting example with L3CX bare driver and ultra low power\n");
 
 	/* Assign the default address to the sensor */
@@ -323,7 +343,29 @@ int main(void)
 			VL53LX_IMPLEMENTATION_VER_MAJOR,
 			VL53LX_IMPLEMENTATION_VER_MINOR,
 			VL53LX_IMPLEMENTATION_VER_SUB);
-
+#else
+  printf("VL53L1X Examples...\n");
+  Dev->I2cHandle = &hi2c1;
+  Dev->I2cDevAddr = 0x52;
+  
+  /* Allow to select the sensor to be used, multi-sensor is not managed in this example.
+  Only when use use the Left ToF in interrupt mode,  solder the U7 on the X-Nucleo-53L3A2 board 
+  Only when use the Right ToF in interrupt mode, solder the U7 on the X-Nucleo-53L3A2 board
+  See "Solder drop configurations" in the X-Nucleo-53L3A2 User Manual for more details */
+  ToFSensor = 1; // Select ToFSensor: 0=Left, 1=Center, 2=Right
+  status = XNUCLEO53L3A2_ResetId(ToFSensor, 0); // Reset ToF sensor
+  HAL_Delay(2);
+  status = XNUCLEO53L3A2_ResetId(ToFSensor, 1); // Reset ToF sensor
+  HAL_Delay(2);
+//  
+//  VL53LX_RdByte(Dev, 0x010F, &byteData);
+//  printf("VL53LX Model_ID: %02X\n\r", byteData);
+//  VL53LX_RdByte(Dev, 0x0110, &byteData);
+//  printf("VL53LX Module_Type: %02X\n\r", byteData);
+//  VL53LX_RdWord(Dev, 0x010F, &wordData);
+//  printf("VL53LX: %02X\n\r", wordData);
+//  RangingLoop();
+#endif
 
 #ifdef ENABLE_XTALK_CALIBRATION
 
@@ -349,11 +391,16 @@ int main(void)
 				bare_driver_xtalk_caldata.customer.algo__crosstalk_compensation_x_plane_gradient_kcps * 1.0 / (1<<11),
 				bare_driver_xtalk_caldata.customer.algo__crosstalk_compensation_y_plane_gradient_kcps * 1.0 / (1<<11));
 #endif
+    status = VL53LX_StopMeasurement(Dev);   //Stop Before Using
+
     status = 0;
 	while(!status)
 	{
+        #if PARA_UltraLowPower
 		status |= InitAndStartLowPower();
+        #else
 		status |= InitAndStartRanging();
+        #endif
 	}
 
 	printf("Program exit after error raised\n");

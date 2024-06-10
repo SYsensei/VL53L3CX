@@ -25,6 +25,7 @@
 #include "vl53lx_api_core.h"
 #include "vl53lx_nvm.h"
 
+#include "config.h"
 
 #define ZONE_CHECK 5
 
@@ -215,8 +216,9 @@ VL53LX_Error VL53LX_DataInit(VL53LX_DEV Dev)
 
 	if (Status == VL53LX_ERROR_NONE)
 		Status = VL53LX_SetMeasurementTimingBudgetMicroSeconds(Dev,
-				33333);
+				PARA_MeasurementTimingBudgetMicroSeconds * 1000);
 
+    
 	if (Status == VL53LX_ERROR_NONE) {
 		pdev = VL53LXDevStructGetLLDriverHandle(Dev);
 		memset(&pdev->per_vcsel_cal_data, 0,

@@ -117,7 +117,6 @@ uint8_t VL53L3CX_ULP_WrByte(uint16_t dev, uint16_t RegisterAdress, uint8_t value
 	data_write[1] = RegisterAdress & 0xFF;
 	data_write[2] = value & 0xFF;
 	status = HAL_I2C_Master_Transmit(&hi2c1, dev, data_write, 3, 100);
-	return status;
 	
 	return status;
 }
